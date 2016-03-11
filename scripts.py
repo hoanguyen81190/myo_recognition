@@ -44,6 +44,12 @@ xyz['timestamp'] = xyz['timestamp'].apply(time2Date)
 xyz = xyz.set_index('timestamp', drop=False)
 abc = df.copy()
 #xyz.resample('80ms', how='sum')
+
+def testfunction1(data):
+    if data is not None: 
+        return (numpy.sum(data['s1']+data['s9']))
+    else:
+        return None
     
 def rollBy2(what,basis,window,func,*args,**kwargs):
     #note that basis must be sorted in order for this to work properly
