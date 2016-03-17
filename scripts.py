@@ -8,6 +8,7 @@ import pandas
 import numpy
 from datetime import datetime
 import matplotlib
+import glob, os
 matplotlib.style.use('ggplot')
 
 names_cols = ['timestamp', 'package_number', 'gesture_name', 'gesture_number', 
@@ -141,6 +142,34 @@ def transformSensorValues(sequence):
     sequence.drop(sequence[['s9', 's10', 's11', 's12', 's13', 's14', 's15', 's16']], axis=1, inplace=True)
     return sequence.sort_values(['timestamp'])
     
+def saveFile(sequence, file_name):
+    sequence.to_csv(GIT_DIR+file_name, sep=',', index=False)
+    
+NUMBER_GROUP = "_number_group"
+TAPPING_GROUP = "_tapping_group"
+SEMANTIC_GROUP = "_semantic_group"
+WRIST = "_wrist"
+STAFF_DIR = "staff" 
+GIT_DIR = "C:/Users/Hoa/thesis/data/"  
+DATA_DIR = "E:/thesis/data/" 
+EXPO_DIRS = ["expo_day/mobile_1",
+             "expo_day/mobile_2",
+             "expo_day/mobile_3",
+             "expo_day/mobile_4"]
+GROUP_NAMES = [NUMBER_GROUP, TAPPING_GROUP, SEMANTIC_GROUP, WRIST]
+def readFiles(mydir, ending):
+    os.chdir(mydir)
+    return glob.glob("*"+ending)
+    
+def transformFiles(mydir, ending):
+    os.chdir(DATA_DIR+mydir)
+    sdir = GIT_DIR+mydir
+    if not os.path.exists(sdir):
+        os.makedirs(sdir)
+    for file in glob.glob("*"+ending):
+        sq_file = pandas.read_csv(file, sep=',', names=names_cols, skiprows=1)
+        sq_file = transformSensorValues(sq_file)
+        sq_file.to_csv(sdir+"/"+file, sep=',', index=False)
 ######################################
 #               visualization        #
 ######################################
