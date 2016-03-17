@@ -112,38 +112,19 @@ def MAVcalculator(x):
             for i in adjacentWindow(x[:160], WINDOW_SIZE*2)]  
 
 #zero crossing
-def cross(sequence, cross=0, direction='cross'):
-    """
-    Given a Series returns all the index values where the data values equal 
-    the 'cross' value. 
+def zeroCrossingCount(sequence):  
+    s = numpy.sign(sequence)  
+    s[s==0] = -1     # replace zeros with -1  
+    return len(numpy.where(numpy.diff(s))[0]) 
+    
 
-    Direction can be 'rising' (for rising edge), 'falling' (for only falling 
-    edge), or 'cross' for both edges
-    """
-    # Find if values are above or bellow yvalue crossing:
-    above=sequence.values > cross
-    below=numpy.logical_not(above)
-    left_shifted_above = above[1:]
-    left_shifted_below = below[1:]
-    x_crossings = []
-    # Find indexes on left side of crossing point
-    if direction == 'rising':
-        idxs = (left_shifted_above & below[0:-1]).nonzero()[0]
-    elif direction == 'falling':
-        idxs = (left_shifted_below & above[0:-1]).nonzero()[0]
-    else:
-        rising = left_shifted_above & below[0:-1]
-        falling = left_shifted_below & above[0:-1]
-        idxs = (rising | falling).nonzero()[0]
-
-    # Calculate x crossings with interpolation using formula for a line:
-    x1 = sequence.index.values[idxs]
-    x2 = sequence.index.values[idxs+1]
-    y1 = sequence.values[idxs]
-    y2 = sequence.values[idxs+1]
-    x_crossings = (cross-y1)*(x2-x1)/(y2-y1) + x1
-
-    return x_crossings
+#time = [0, 0.1, 0.21, 0.31, 0.40, 0.49, 0.51, 0.6, 0.71, 0.82, 0.93]
+#voltage = [1,  -1,  1.1, -0.9,    1,   -1,  0.9,-1.2, 0.95, -1.1, 1.11]
+#df = DataFrame(data=voltage, index=time, columns=['voltage'])
+#x_crossings = cross(df['voltage'])
+#y_crossings = np.zeros(x_crossings.shape)
+#plt.plot(time, voltage, '-ob', x_crossings, y_crossings, 'or')
+#plt.grid(True)
 ######################################
 #       helper                       #
 ######################################
