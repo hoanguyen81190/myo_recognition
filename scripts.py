@@ -14,11 +14,13 @@ matplotlib.style.use('ggplot')
 names_cols = ['timestamp', 'package_number', 'gesture_name', 'gesture_number', 
               's1', 's2', 's3', 's4', 's5', 's6', 's7', 's8',
               's9', 's10', 's11', 's12', 's13', 's14', 's15', 's16']
+names_cols_short = ['timestamp', 'package_number', 'gesture_name', 'gesture_number', 
+              's1', 's2', 's3', 's4', 's5', 's6', 's7', 's8']             
 
 GESTURE_LENGTH = 150
 WINDOW_SIZE = 20 #200ms
 
-df = pandas.read_csv('C:/Users/Hoa/workspace/Myo/rsc/test.csv', sep=',', names=names_cols, skiprows=1)
+df = pandas.read_csv('C:/Users/Hoa/thesis/data/test_transform', sep=',', names=names_cols_short, skiprows=1)
 
 def time2Date(val):
 #    seconds = val/1000
@@ -26,7 +28,16 @@ def time2Date(val):
 #    date = datetime.fromtimestamp(seconds + sub_seconds)
     date = datetime.fromtimestamp(val/1000).replace(microsecond = (val % 1000) * 1000)    
     return pandas.to_datetime(date.strftime('%Y-%m-%d %H:%M:%S.%f'))
-    
+
+#####################################
+#       motion detection            #
+#####################################
+
+
+
+#####################################
+#       data segmentation           #
+#####################################    
 
 def rollBy(what,basis,window,func, step, *args,**kwargs):
     #note that basis must be sorted in order for this to work properly     
@@ -112,20 +123,64 @@ def MAVcalculator(x):
             numpy.mean(numpy.abs(i['s1'])), numpy.mean(numpy.abs(i['s1'])), numpy.mean(numpy.abs(i['s1'])), numpy.mean(numpy.abs(i['s1']))]
             for i in adjacentWindow(x[:160], WINDOW_SIZE*2)]  
 
+#MAVS
+#def MAVScalculator(x):
+#    fs = numpy.gradient(x) #calculate first derivative
+#    #then count the number of sign change
+#    return ....
+
 #zero crossing
-def zeroCrossingCount(sequence):  
+#or number of zero crossing
+def zeroCrossingRate(sequence):  
     s = numpy.sign(sequence)  
     s[s==0] = -1     # replace zeros with -1  
-    return len(numpy.where(numpy.diff(s))[0]) 
+    zcr = len(numpy.where(numpy.diff(s))[0])/(len(sequence)-1)
+    return zcr
+
+#mean absolute value ratio: the ratio of MAV between channel
+def MAVRcalculator(sequence):
+    return
+
+#waveform length: the cumulative length of the EMG signal within the analysis window 
+def WLcalculator(sequence):
     
 
-#time = [0, 0.1, 0.21, 0.31, 0.40, 0.49, 0.51, 0.6, 0.71, 0.82, 0.93]
-#voltage = [1,  -1,  1.1, -0.9,    1,   -1,  0.9,-1.2, 0.95, -1.1, 1.11]
-#df = DataFrame(data=voltage, index=time, columns=['voltage'])
-#x_crossings = cross(df['voltage'])
-#y_crossings = np.zeros(x_crossings.shape)
-#plt.plot(time, voltage, '-ob', x_crossings, y_crossings, 'or')
-#plt.grid(True)
+#autocorrelation
+def autoCorr(x):
+    result = numpy.correlate(x, x, mode='full')
+    return result[result.size/2:]
+    
+def acf(x, length=20):
+    return numpy.array([1]+[numpy.corrcoef(x[:-i], x[i:]) \
+        for i in range(1, length)])
+
+def autocorr(x, t=1):
+    return numpy.corrcoef(numpy.array([x[0:len(x)-t], x[t:len(x)]]))
+
+def autocorr1(sequence):
+    corr = numpy.correlate(sequence, sequence, mode='same')
+    N = len(corr)
+    half = corr[N//2:]
+    lengths = range(N, N//2, -1)
+    half /= lengths
+    half /= half[0]
+    return half
+
+#spectral power magnitudes
+def SPMcalculator(sequence):
+    #divide into 4 equal bandwidths
+    #performing Fast Fourier Transform
+    #taking the average
+    return
+    
+#sample entropy
+def sampEncalculator(sequence):
+    return
+    
+#sample AR model
+def ARcalculator(sequence):
+    return
+
 ######################################
 #       helper                       #
 ######################################
