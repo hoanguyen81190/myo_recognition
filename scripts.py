@@ -18,7 +18,9 @@ names_cols_short = ['timestamp', 'package_number', 'gesture_name', 'gesture_numb
               's1', 's2', 's3', 's4', 's5', 's6', 's7', 's8']             
 
 GESTURE_LENGTH = 150
-WINDOW_SIZE = 20 #200ms
+WINDOW_SIZE = 40 #200ms
+INCREMENT = 20 #100ms
+EPSILON = 0.015 #V
 
 df = pandas.read_csv('C:/Users/Hoa/thesis/data/test_transform', sep=',', names=names_cols_short, skiprows=1)
 
@@ -105,6 +107,14 @@ def lengthOfSamples(sequence):
 def featureCalculator(sequence, func):
     gesture_groups = sequence.groupby(['gesture_name', 'gesture_number'])
     return gesture_groups.apply(func)
+
+def extractFeatures(sequence, *funcs):
+    #festures
+    def applyFunctions(x):
+        for f in funcs:        
+            yield f(x)
+    return [i.apply(applyFunctions) for i in overlappedWindow(sequence, WINDOW_SIZE, INCREMENT)]
+        
     
 #def MAVcalculator1(x):
 #    return [[((sum(i['s1'])+sum(i['s9']))/(len(i['s1'])+len(i['s9']))),
@@ -118,10 +128,19 @@ def featureCalculator(sequence, func):
 #            for i in adjacentDisjointWindow(x[:160], WINDOW_SIZE)]
 
 #MAV
-def MAVcalculator(x):
-    return [[numpy.mean(numpy.abs(i['s1'])), numpy.mean(numpy.abs(i['s1'])), numpy.mean(numpy.abs(i['s1'])), numpy.mean(numpy.abs(i['s1'])),
-            numpy.mean(numpy.abs(i['s1'])), numpy.mean(numpy.abs(i['s1'])), numpy.mean(numpy.abs(i['s1'])), numpy.mean(numpy.abs(i['s1']))]
-            for i in adjacentWindow(x[:160], WINDOW_SIZE*2)]  
+def MAVcal(x):
+    return [numpy.mean(numpy.abs(x['s1'])), numpy.mean(numpy.abs(x['s2'])), 
+            numpy.mean(numpy.abs(x['s3'])), numpy.mean(numpy.abs(x['s4'])),
+            numpy.mean(numpy.abs(x['s5'])), numpy.mean(numpy.abs(x['s6'])), 
+            numpy.mean(numpy.abs(x['s7'])), numpy.mean(numpy.abs(x['s8']))]  
+
+#mean absolute value ratio: the ratio of MAV between channel
+#only use: s1/s5, s2/s6, s3/s7, s4/s8
+def MAVRcal(x):
+    return [numpy.mean(numpy.abs(x['s1'])) / numpy.mean(numpy.abs(x['s5'])), 
+            numpy.mean(numpy.abs(x['s2'])) / numpy.mean(numpy.abs(x['s6'])),
+            numpy.mean(numpy.abs(x['s3'])) / numpy.mean(numpy.abs(x['s7'])), 
+            numpy.mean(numpy.abs(x['s4'])) / numpy.mean(numpy.abs(x['s8']))]
 
 #MAVS
 #def MAVScalculator(x):
@@ -131,19 +150,25 @@ def MAVcalculator(x):
 
 #zero crossing
 #or number of zero crossing
-def zeroCrossingRate(sequence):  
-    s = numpy.sign(sequence)  
-    s[s==0] = -1     # replace zeros with -1  
-    zcr = len(numpy.where(numpy.diff(s))[0])/(len(sequence)-1)
-    return zcr
-
-#mean absolute value ratio: the ratio of MAV between channel
-def MAVRcalculator(sequence):
-    return
+def zeroCrossingRate(x):  
+    def zeroCal(xx):    
+        s = numpy.sign(xx)  
+        s[s==0] = -1     # replace zeros with -1  
+        #the delta should be greater than EPSILON, but in this case, 
+        #values are integer so we don't need to check this condition.
+        return len(numpy.where(numpy.diff(s))[0])/(len(xx)-1)
+    return [zeroCal(x['s1']), zeroCal(x['s2']), 
+            zeroCal(x['s3']), zeroCal(x['s4']),
+            zeroCal(x['s5']), zeroCal(x['s6']), 
+            zeroCal(x['s7']), zeroCal(x['s8'])]  
 
 #waveform length: the cumulative length of the EMG signal within the analysis window 
-def WLcalculator(sequence):
-    
+def WLcal(x):
+    return [sum(numpy.diff(x['s1'])), sum(numpy.diff(x['s2'])), 
+            sum(numpy.diff(x['s3'])), sum(numpy.diff(x['s4'])),
+            sum(numpy.diff(x['s5'])), sum(numpy.diff(x['s6'])), 
+            sum(numpy.diff(x['s7'])), sum(numpy.diff(x['s8']))]  
+
 
 #autocorrelation
 def autoCorr(x):
@@ -171,7 +196,8 @@ def SPMcalculator(sequence):
     #divide into 4 equal bandwidths
     #performing Fast Fourier Transform
     #taking the average
-    return
+    return [numpy.average(numpy.fft.fft(i))
+        for i in adjacentWindow(sequence, len(sequence)/4)]
     
 #sample entropy
 def sampEncalculator(sequence):
@@ -230,6 +256,8 @@ def transformFiles(mydir, ending):
 ######################################
 #ts.plot()
 
+
+fs = getSample(abc, 0, 0)
 '''
 B       business day frequency
 C       custom business day frequency (experimental)
