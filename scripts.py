@@ -110,10 +110,11 @@ def featureCalculator(sequence, func):
 
 def extractFeatures(sequence, *funcs):
     #festures
-    def applyFunctions(x):
-        for f in funcs:        
-            yield f(x)
-    return [i.apply(applyFunctions) for i in overlappedWindow(sequence, WINDOW_SIZE, INCREMENT)]
+    def applyFunctions(x, *funcs):
+        for func in funcs:
+            print(func)
+#        return [func(x) for func in funcs]
+    return [applyFunctions(i, funcs) for i in overlappedWindow(sequence, WINDOW_SIZE, INCREMENT)]
         
     
 #def MAVcalculator1(x):
@@ -200,8 +201,8 @@ def SPMcalculator(sequence):
         for i in adjacentWindow(sequence, len(sequence)/4)]
     
 #sample entropy
-def sampEncalculator(sequence):
-    return
+#def sampEncalculator(sequence):
+#    return
     
 #sample AR model
 def ARcalculator(sequence):
