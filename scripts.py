@@ -8,6 +8,7 @@ import pandas
 import numpy
 from datetime import datetime
 import matplotlib
+import itertools
 import glob, os
 matplotlib.style.use('ggplot')
 
@@ -17,7 +18,16 @@ names_cols = ['timestamp', 'package_number', 'gesture_name', 'gesture_number',
 names_cols_short = ['timestamp', 'package_number', 'gesture_name', 'gesture_number', 
               's1', 's2', 's3', 's4', 's5', 's6', 's7', 's8']             
 
-GESTURE_LENGTH = 150
+db_cols = ['file_name', 'gesture_name', 'gesture_number', 'window_number', 
+           'MAV_s0', 'MAV_s1', 'MAV_s2', 'MAV_s3', 'MAV_s4', 'MAV_s5', 'MAV_s6', 'MAV_s7',
+           'MAVR_s05', 'MAVR_s16', 'MAVR_s27', 'MAVR_s38', 
+           'ZC_s0', 'ZC_s1', 'ZC_s2', 'ZC_s3', 'ZC_s4', 'ZC_s5', 'ZC_s6', 'ZC_s7', 
+           'WL_s0', 'WL_s1', 'WL_s2', 'WL_s3', 'WL_s4', 'WL_s5', 'WL_s6', 'WL_s7', 
+           'ACCC_s0', 'ACCC_s1', 'ACCC_s2', 'ACCC_s3', 'ACCC_s4', 'ACCC_s5', 'ACCC_s6', 'ACCC_s7', 
+           'SPM_s0', 'SPM_s1', 'SPM_s2', 'SPM_s3', 'SPM_s4', 'SPM_s5', 'SPM_s6', 'SPM_s7', 
+           'SampEn_s0', 'SampEn_s1', 'SampEn_s2', 'SampEn_s3', 'SampEn_s4', 'SampEn_s5', 'SampEn_s6', 'SampEn_s7']
+
+GESTURE_LENGTH = 240 #240 points, 5ms/point => 1200 ms
 WINDOW_SIZE = 40 #200ms
 INCREMENT = 20 #100ms
 EPSILON = 0.015 #V
@@ -108,14 +118,46 @@ def featureCalculator(sequence, func):
     gesture_groups = sequence.groupby(['gesture_name', 'gesture_number'])
     return gesture_groups.apply(func)
 
-def extractFeatures(sequence, *funcs):
+def extractAllSample(seq, funcs, cols, file_name, ending):
+    df = pandas.DataFrame(columns = ['file_name', 'gesture_name', 'gesture_number', 'window_number'] + cols)
+    groups = seq.groupby(['gesture_name', 'gesture_number'])
+    for group, sample in groups:
+        windows = extractFeatures1(sample, funcs)
+        for i in range(len(windows)):
+            temp_df = pandas.DataFrame([[file_name, ending+str(group[0]), group[1], i] + windows[i]],
+                                       columns = ['file_name', 'gesture_name', 'gesture_number', 'window_number'] + cols)
+            df = df.append(temp_df)
+    return df
+
+FEATURE_FILE = 'myo_features'
+            
+def extractFiles(mydir, ending, funcs, cols, feature_set):
+    os.chdir(mydir)
+    s_file = GIT_DIR+"/" + FEATURE_FILE + "_" + feature_set
+    for file in glob.glob("*"+ending):
+        sq_file = pandas.read_csv(file, sep=',', names=names_cols, skiprows=1)
+        df = extractAllSample(sq_file, funcs, cols, file, ending)
+        if not os.path.isfile(s_file):
+            df.to_csv(s_file, header=True, index = False)
+        else:
+            df.to_csv(s_file, mode = 'a', header = False, index = False)
+
+            
+#to simplify the process, gesture length is set to fix size: 1200 ms
+def extractFeatures(sequence, funcs):
     #festures
-    def applyFunctions(x, *funcs):
-        for func in funcs:
-            print(func)
-#        return [func(x) for func in funcs]
-    return [applyFunctions(i, funcs) for i in overlappedWindow(sequence, WINDOW_SIZE, INCREMENT)]
-        
+    def applyFunctions(val):
+        return [f(val) for f in funcs]
+    return [applyFunctions(i) for i in overlappedWindow(sequence[:GESTURE_LENGTH], WINDOW_SIZE, INCREMENT)]
+ 
+def extractFeatures1(sequence, funcs):
+    def applyFunctions(val):
+        ret_dict = []
+        for f in funcs:
+            ret_dict += f(val)
+        return ret_dict
+    return [applyFunctions(i) for i in overlappedWindow(sequence[:GESTURE_LENGTH], WINDOW_SIZE, INCREMENT)]
+    
     
 #def MAVcalculator1(x):
 #    return [[((sum(i['s1'])+sum(i['s9']))/(len(i['s1'])+len(i['s9']))),
@@ -193,7 +235,7 @@ def autocorr1(sequence):
     return half
 
 #spectral power magnitudes
-def SPMcalculator(sequence):
+def SPMcal(sequence):
     #divide into 4 equal bandwidths
     #performing Fast Fourier Transform
     #taking the average
@@ -205,8 +247,23 @@ def SPMcalculator(sequence):
 #    return
     
 #sample AR model
-def ARcalculator(sequence):
+def ARcal(sequence):
     return
+    
+info_cols = ['file_name', 'gesture_name', 'gesture_number', 'window_number']
+tmd_funcs = [MAVcal, MAVRcal, zeroCrossingRate, WLcal]
+tmd_cols = ['MAV_s0', 'MAV_s1', 'MAV_s2', 'MAV_s3', 'MAV_s4', 'MAV_s5', 'MAV_s6', 'MAV_s7',
+ 'MAVR_s05', 'MAVR_s16', 'MAVR_s27', 'MAVR_s38',
+ 'ZC_s0', 'ZC_s1', 'ZC_s2', 'ZC_s3', 'ZC_s4', 'ZC_s5', 'ZC_s6', 'ZC_s7',
+ 'WL_s0', 'WL_s1', 'WL_s2', 'WL_s3', 'WL_s4', 'WL_s5', 'WL_s6', 'WL_s7']
+ 
+accc_cols = ['ACCC_s0', 'ACCC_s1', 'ACCC_s2', 'ACCC_s3', 'ACCC_s4', 'ACCC_s5', 'ACCC_s6', 'ACCC_s7']
+
+spm_funcs = [SPMcal]
+spm_cols = ['SPM_s0', 'SPM_s1', 'SPM_s2', 'SPM_s3', 'SPM_s4', 'SPM_s5', 'SPM_s6', 'SPM_s7']
+sampen_cols = ['SampEn_s0', 'SampEn_s1', 'SampEn_s2', 'SampEn_s3', 'SampEn_s4', 'SampEn_s5', 'SampEn_s6', 'SampEn_s7']
+
+
 
 ######################################
 #       helper                       #
