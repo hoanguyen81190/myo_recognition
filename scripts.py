@@ -380,6 +380,8 @@ EXPO_DIRS = ["expo_day/mobile_1",
              "expo_day/mobile_3",
              "expo_day/mobile_4"]
 NEW_DIR = "new"
+HAI_DIR = "hai"
+HOA_DIR = "hoa"
 GROUP_NAMES = [NUMBER_GROUP, TAPPING_GROUP, WRIST]
 def readFiles(mydir, ending):
     os.chdir(mydir)
@@ -479,6 +481,15 @@ def getXsYs(seq, lengths):
 
 #
 #staff
+
+myo_features_new_TMD = pandas.read_csv('C:/Users/Hoa/thesis/data/myo_features_new_TMD', names=info_cols+tmd_cols, skiprows=1)
+myo_features_new_TMD = myo_features_new_TMD.drop_duplicates()
+myo_features_new_TMD['gesture_name'] = myo_features_new_TMD['gesture_name'].apply(nameDict)
+
+tmdv_new = getXsYs(myo_features_new_TMD, len(tmd_cols))
+Xs_tmd = tmdv_new[0]
+Ys_tmd = tmdv_new[1]
+
 '''myo_features_staff_TMD = pandas.read_csv('C:/Users/Hoa/thesis/data/myo_features_staff_TMD', names=info_cols+tmd_cols, skiprows=1)
 myo_features_staff_TMD = myo_features_staff_TMD.drop_duplicates()
 myo_features_staff_TMD['gesture_name'] = myo_features_staff_TMD['gesture_name'].apply(nameDict)
