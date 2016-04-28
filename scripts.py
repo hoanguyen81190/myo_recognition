@@ -7,19 +7,26 @@ Created on Thu Mar 10 21:57:59 2016
 import pandas
 import numpy
 from datetime import datetime
-import matplotlib
+import matplotlib.pyplot as plt
 import itertools
 import glob, os
+import math
 
 #
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.naive_bayes import GaussianNB
+from sklearn.linear_model import LogisticRegression
 from sklearn import cross_validation
 from sklearn.cross_validation import LeaveOneOut
-from sklearn import svm
+from sklearn.svm import LinearSVC
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.cross_validation import train_test_split
+from sklearn.metrics import accuracy_score
+from sklearn.metrics import confusion_matrix
+
 #
 
-matplotlib.style.use('ggplot')
+#matplotlib.style.use('ggplot')
 
 names_cols = ['timestamp', 'package_number', 'gesture_name', 'gesture_number', 
               's1', 's2', 's3', 's4', 's5', 's6', 's7', 's8',
@@ -186,7 +193,7 @@ def extractFeatures1(sequence, funcs):
 #            for i in adjacentDisjointWindow(x[:160], WINDOW_SIZE)]
 
 #MAV
-
+    
 def mav(x):
     return numpy.mean(numpy.abs(x)) if not(x.empty) else 0
 
@@ -244,53 +251,21 @@ def WLcal(x):
             sum(numpy.diff(x['s5'])), sum(numpy.diff(x['s6'])), 
             sum(numpy.diff(x['s7'])), sum(numpy.diff(x['s8']))]  
 
-
-#autocorrelation
-def autoCorr(x):
-    result = numpy.correlate(x, x, mode='full')
-    return result[int(result.size/2):]
+#ACCC
+def ccCal(x, y, t=INCREMENT, f=1):
+    """
+    Cross correlation, formula from:
+    Application of Autocorrelation and Crosscorrelation
+    Analyses in Human Movement
+    and Rehabilitation Research
+    """
+    N = len(x)
+    top = (numpy.array([(x[i]- x.mean())*(y[(N-t+i)%N]-y.mean()) for i in range(N)]).sum())
+    bottom = math.sqrt((numpy.array([(x[i]-x.mean())**2 for i in range(N)]).sum())*(numpy.array([(y[i]-y.mean())**2 for i in range(N)]).sum()))
+    return top/bottom
     
-#def acf(x, length=20):
-#    return numpy.array([1]+[numpy.corrcoef(x[:-i], x[i:]) \
-#        for i in range(1, length)])
-
-def autocorr(x, t=1):
-    return numpy.corrcoef(numpy.array([x[0:len(x)-t], x[t:len(x)]]))
-
-def autocorr1(sequence):
-    corr = numpy.correlate(sequence, sequence, mode='same')
-    N = len(corr)
-    half = corr[N//2:]
-    lengths = range(N, N//2, -1)
-    half /= lengths
-    half /= half[0]
-    return half
-    
-def acf(series):
-    n = len(series)
-    data = numpy.asarray(series)
-    mean = numpy.mean(data)
-    c0 = numpy.sum((data - mean) ** 2) / float(n)
-
-    def r(h):
-        acf_lag = ((data[:n - h] - mean) * (data[h:] - mean)).sum() / float(n) / c0
-        return round(acf_lag, 3)
-    x = numpy.arange(n) # Avoiding lag 0 calculation
-    acf_coeffs = map(r, x)
-    return acf_coeffs
-    
-#def ACcal(seq):
-#    return [autocorr(seq['s1']), autocorr(seq['s2']),
-#            autocorr(seq['s3']), autocorr(seq['s4']),
-#            autocorr(seq['s5']), autocorr(seq['s6']),
-#            autocorr(seq['s7']), autocorr(seq['s8'])]
-
-def ACcal(seq):
-    return [autoCorr(seq['s1']), autoCorr(seq['s2']),
-            autoCorr(seq['s3']), autoCorr(seq['s4']),
-            autoCorr(seq['s5']), autoCorr(seq['s6']),
-            autoCorr(seq['s7']), autoCorr(seq['s8'])]
-
+def acCal(x, t=INCREMENT, f=1):
+    return ccCal(x, x, t, f)
 
 #spectral power magnitudes
 def SPMcal(seq):
@@ -326,7 +301,15 @@ tmd_cols = ['MAV_s0', 'MAV_s1', 'MAV_s2', 'MAV_s3', 'MAV_s4', 'MAV_s5', 'MAV_s6'
  'WL_s0', 'WL_s1', 'WL_s2', 'WL_s3', 'WL_s4', 'WL_s5', 'WL_s6', 'WL_s7']
 tmd_lengths = 52
  
-accc_cols = ['ACCC_s0', 'ACCC_s1', 'ACCC_s2', 'ACCC_s3', 'ACCC_s4', 'ACCC_s5', 'ACCC_s6', 'ACCC_s7']
+accc_cols = ['AC_s0', 'AC_s1', 'AC_s2', 'AC_s3', 'AC_s4', 'AC_s5', 'AC_s6', 'AC_s7'
+             , 'CC_s01', 'CC_s02', 'CC_s03', 'CC_s04', 'CC_s05', 'CC_s06', 'CC_s07'
+             , 'CC_s12', 'CC_s13', 'CC_s14', 'CC_s15', 'CC_s16', 'CC_s17'
+             , 'CC_s23', 'CC_s24', 'CC_s25', 'CC_s26', 'CC_s27'
+             , 'CC_s34', 'CC_s35', 'CC_s36', 'CC_s37'
+             , 'CC_s45', 'CC_s46', 'CC_s47'
+             , 'CC_s56', 'CC_s57'
+             , 'CC_s67']
+accc_funcs = [acCal, ccCal]
 
 spm_funcs = [SPMcal]
 spm_cols = ['SPM_s0', 'SPM_s1', 'SPM_s2', 'SPM_s3', 'SPM_s4', 'SPM_s5', 'SPM_s6', 'SPM_s7']
@@ -382,6 +365,7 @@ EXPO_DIRS = ["expo_day/mobile_1",
 NEW_DIR = "new"
 HAI_DIR = "hai"
 HOA_DIR = "hoa"
+HIEN_DIR = "hien"
 GROUP_NAMES = [NUMBER_GROUP, TAPPING_GROUP, WRIST]
 def readFiles(mydir, ending):
     os.chdir(mydir)
@@ -487,8 +471,56 @@ myo_features_new_TMD = myo_features_new_TMD.drop_duplicates()
 myo_features_new_TMD['gesture_name'] = myo_features_new_TMD['gesture_name'].apply(nameDict)
 
 tmdv_new = getXsYs(myo_features_new_TMD, len(tmd_cols))
-Xs_tmd = tmdv_new[0]
-Ys_tmd = tmdv_new[1]
+
+myo_features_hai_TMD = pandas.read_csv('C:/Users/Hoa/thesis/data/myo_features_hai_TMD', names=info_cols+tmd_cols, skiprows=1)
+myo_features_hai_TMD = myo_features_hai_TMD.drop_duplicates()
+myo_features_hai_TMD['gesture_name'] = myo_features_hai_TMD['gesture_name'].apply(nameDict)
+
+tmdv_hai = getXsYs(myo_features_hai_TMD, len(tmd_cols))
+
+myo_features_hoa_TMD = pandas.read_csv('C:/Users/Hoa/thesis/data/myo_features_hoa_TMD', names=info_cols+tmd_cols, skiprows=1)
+myo_features_hoa_TMD = myo_features_hoa_TMD.drop_duplicates()
+myo_features_hoa_TMD['gesture_name'] = myo_features_hoa_TMD['gesture_name'].apply(nameDict)
+
+tmdv_hoa = getXsYs(myo_features_hoa_TMD, len(tmd_cols))
+
+myo_features_hien_TMD = pandas.read_csv('C:/Users/Hoa/thesis/data/myo_features_hien_TMD', names=info_cols+tmd_cols, skiprows=1)
+myo_features_hien_TMD = myo_features_hien_TMD.drop_duplicates()
+myo_features_hien_TMD['gesture_name'] = myo_features_hien_TMD['gesture_name'].apply(nameDict)
+
+tmdv_hien = getXsYs(myo_features_hien_TMD, len(tmd_cols))
+
+Xs_tmd = tmdv_new[0] + tmdv_hai[0] + tmdv_hoa[0] + tmdv_hien[0]
+Ys_tmd = tmdv_new[1] + tmdv_hai[1] + tmdv_hoa[1] + tmdv_hien[1]
+
+x_hoa = tmdv_hoa[0]
+
+y_hoa = tmdv_hoa[1]
+
+rfc_hoa = RandomForestClassifier(n_estimators=10)
+
+rfc_hoa.fit(x_hoa, y_hoa)
+
+rfc_scores_hoa = cross_validation.cross_val_score(rfc_hoa, x_hoa, y_hoa, cv=5)
+
+# Create classifiers
+lr = LogisticRegression()
+gnb = GaussianNB()
+svc = LinearSVC(C=1.0)
+rfc = RandomForestClassifier(n_estimators=100)
+
+X_tmd = tmdv_hoa[0] + tmdv_hien[0] + tmdv_new[0]
+y_tmd = tmdv_hoa[1] + tmdv_hien[1] + tmdv_new[1]
+X_train, X_test, y_train, y_test = train_test_split(X_tmd, y_tmd, test_size=0.33, random_state=42)
+scores = {}
+for clf, name in [(lr, 'Logistic'),
+                  (gnb, 'Naive Bayes'),
+                  (svc, 'Support Vector Classification'),
+                  (rfc, 'Random Forest')]:
+    clf.fit(X_train, y_train)
+    y_pred = clf.predict(X_test)
+    acc = accuracy_score(y_test, y_pred)
+    scores[name] = acc
 
 '''myo_features_staff_TMD = pandas.read_csv('C:/Users/Hoa/thesis/data/myo_features_staff_TMD', names=info_cols+tmd_cols, skiprows=1)
 myo_features_staff_TMD = myo_features_staff_TMD.drop_duplicates()
@@ -528,6 +560,8 @@ from sklearn.cross_validation import train_test_split
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import confusion_matrix
 X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=0.33, random_state=42)
+confusion_matrix(y_true, y_pred)
+accuracy_score(y_test, y_pred)
 #
 # machine learning
 #
