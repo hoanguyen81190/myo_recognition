@@ -23,6 +23,9 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.cross_validation import train_test_split
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import confusion_matrix
+from sklearn.multiclass import OneVsRestClassifier
+from sklearn.svm import SVC
+from sklearn.learning_curve import learning_curve
 
 #
 
@@ -48,7 +51,7 @@ WINDOW_SIZE = 40 #200ms
 INCREMENT = 20 #100ms
 EPSILON = 0.015 #V
 
-df = pandas.read_csv('C:/Users/Hoa/thesis/data/test', sep=',', names=names_cols, skiprows=1)
+df = pandas.read_csv('C:/Users/Hoa/thesis/data/test', sep=',', names=names_cols_short, skiprows=1)
 
 def time2Date(val):
 #    seconds = val/1000
@@ -252,20 +255,37 @@ def WLcal(x):
             sum(numpy.diff(x['s7'])), sum(numpy.diff(x['s8']))]  
 
 #ACCC
-def ccCal(x, y, t=INCREMENT, f=1):
+def cc(x, y, t=INCREMENT/2, f=1):
     """
     Cross correlation, formula from:
     Application of Autocorrelation and Crosscorrelation
     Analyses in Human Movement
     and Rehabilitation Research
     """
+    x = numpy.asarray(x)
+    y = numpy.asarray(y)
     N = len(x)
     top = (numpy.array([(x[i]- x.mean())*(y[(N-t+i)%N]-y.mean()) for i in range(N)]).sum())
     bottom = math.sqrt((numpy.array([(x[i]-x.mean())**2 for i in range(N)]).sum())*(numpy.array([(y[i]-y.mean())**2 for i in range(N)]).sum()))
     return top/bottom
     
-def acCal(x, t=INCREMENT, f=1):
-    return ccCal(x, x, t, f)
+def ac(x, t=INCREMENT, f=1):
+    return cc(x, x, t, f)
+    
+def acCal(seq):
+    return [ac(seq['s1']), ac(seq['s2']), 
+            ac(seq['s3']), ac(seq['s4']),
+            ac(seq['s5']), ac(seq['s6']), 
+            ac(seq['s7']), ac(seq['s8'])]
+            
+def ccCal(x):
+    ret = []
+    for i in range(8):
+        for j in range(i, 8):
+            if i != j:
+                v = cc(x['s'+str(i+1)], x['s'+str(j+1)])
+                ret += [v]
+    return ret
 
 #spectral power magnitudes
 def SPMcal(seq):
@@ -362,6 +382,8 @@ EXPO_DIRS = ["expo_day/mobile_1",
              "expo_day/mobile_2",
              "expo_day/mobile_3",
              "expo_day/mobile_4"]
+model = "OVR_RFC.pkl"
+MODEL_DIR = "C:/Users/Hoa/thesis/models"
 NEW_DIR = "new"
 HAI_DIR = "hai"
 HOA_DIR = "hoa"
@@ -370,6 +392,27 @@ GROUP_NAMES = [NUMBER_GROUP, TAPPING_GROUP, WRIST]
 def readFiles(mydir, ending):
     os.chdir(mydir)
     return glob.glob("*"+ending)
+    
+def hammingFiles(mydir, ending):
+    def f(x):
+        x = x.apply(numpy.abs)
+        x = x.apply(math.sqrt)
+        x = pandas.pandas.rolling_window(x, window=WINDOW_SIZE, win_type='hamming', mean=True)
+    os.chdir(GIT_DIR+mydir)
+    sdir = GIT_DIR+mydir+"_hamming"
+    if not os.path.exists(sdir):
+        os.makedirs(sdir)
+    for file in glob.glob("*"+ending):
+        seq = pandas.read_csv(file, sep=',', names=names_cols, skiprows=1)
+        seq['s1'] = f(seq['s1'])
+        seq['s2'] = f(seq['s2'])
+        seq['s3'] = f(seq['s3'])
+        seq['s4'] = f(seq['s4'])
+        seq['s5'] = f(seq['s5'])
+        seq['s6'] = f(seq['s6'])
+        seq['s7'] = f(seq['s7'])
+        seq['s8'] = f(seq['s8'])
+        seq.to_csv(sdir+"/"+file, sep=',', index=False)
     
 def transformFiles(mydir, ending):
     os.chdir(DATA_DIR+mydir)
@@ -508,19 +551,114 @@ lr = LogisticRegression()
 gnb = GaussianNB()
 svc = LinearSVC(C=1.0)
 rfc = RandomForestClassifier(n_estimators=100)
+classif = OneVsRestClassifier(SVC(kernel='linear'))
+#classif.fit(X, Y)
 
 X_tmd = tmdv_hoa[0] + tmdv_hien[0] + tmdv_new[0]
 y_tmd = tmdv_hoa[1] + tmdv_hien[1] + tmdv_new[1]
 X_train, X_test, y_train, y_test = train_test_split(X_tmd, y_tmd, test_size=0.33, random_state=42)
 scores = {}
-for clf, name in [(lr, 'Logistic'),
-                  (gnb, 'Naive Bayes'),
-                  (svc, 'Support Vector Classification'),
-                  (rfc, 'Random Forest')]:
-    clf.fit(X_train, y_train)
-    y_pred = clf.predict(X_test)
-    acc = accuracy_score(y_test, y_pred)
-    scores[name] = acc
+
+#ACCC
+myo_features_new_ACCC = pandas.read_csv('C:/Users/Hoa/thesis/data/myo_features_new_ACCC', names=info_cols+accc_cols, skiprows=1)
+myo_features_new_ACCC = myo_features_new_ACCC.drop_duplicates()
+myo_features_new_ACCC['gesture_name'] = myo_features_new_ACCC['gesture_name'].apply(nameDict)
+
+accc_new = getXsYs(myo_features_new_ACCC, len(accc_cols))
+
+myo_features_hai_ACCC = pandas.read_csv('C:/Users/Hoa/thesis/data/myo_features_hai_ACCC', names=info_cols+accc_cols, skiprows=1)
+myo_features_hai_ACCC = myo_features_hai_ACCC.drop_duplicates()
+myo_features_hai_ACCC['gesture_name'] = myo_features_hai_ACCC['gesture_name'].apply(nameDict)
+
+accc_hai = getXsYs(myo_features_hai_ACCC, len(accc_cols))
+
+myo_features_hoa_ACCC = pandas.read_csv('C:/Users/Hoa/thesis/data/myo_features_hoa_ACCC', names=info_cols+accc_cols, skiprows=1)
+myo_features_hoa_ACCC['gesture_name'] = myo_features_hoa_ACCC['gesture_name'].apply(nameDict)
+myo_features_hoa_ACCC = myo_features_hoa_ACCC.drop_duplicates()
+
+accc_hoa = getXsYs(myo_features_hoa_ACCC, len(accc_cols))
+
+myo_features_hien_ACCC = pandas.read_csv('C:/Users/Hoa/thesis/data/myo_features_hien_ACCC', names=info_cols+accc_cols, skiprows=1)
+myo_features_hien_ACCC = myo_features_hien_ACCC.drop_duplicates()
+myo_features_hien_ACCC['gesture_name'] = myo_features_hien_ACCC['gesture_name'].apply(nameDict)
+
+accc_hien = getXsYs(myo_features_hien_ACCC, len(accc_cols))
+
+X_accc = accc_hoa[0] + accc_hien[0] + accc_new[0]
+y_accc = accc_hoa[1] + accc_hien[1] + accc_new[1]
+X_train, X_test, y_train, y_test = train_test_split(X_accc, y_accc, test_size=0.33, random_state=42)
+accc_scores = {}
+
+myo_features_new_SPM = pandas.read_csv('C:/Users/Hoa/thesis/data/myo_features_new_SPM', names=info_cols+spm_cols, skiprows=1, converters={'SPM_s0': complex, 'SPM_s1': complex, 'SPM_s2': complex, 'SPM_s3': complex, 'SPM_s4': complex, 'SPM_s5': complex, 'SPM_s6': complex, 'SPM_s7': complex})
+myo_features_new_SPM = myo_features_new_SPM.drop_duplicates()
+myo_features_new_SPM['gesture_name'] = myo_features_new_SPM['gesture_name'].apply(nameDict)
+
+spm_new = getXsYs(myo_features_new_SPM, len(spm_cols))
+
+myo_features_hai_SPM = pandas.read_csv('C:/Users/Hoa/thesis/data/myo_features_hai_SPM', names=info_cols+spm_cols, skiprows=1, converters={'SPM_s0': complex, 'SPM_s1': complex, 'SPM_s2': complex, 'SPM_s3': complex, 'SPM_s4': complex, 'SPM_s5': complex, 'SPM_s6': complex, 'SPM_s7': complex})
+myo_features_hai_SPM = myo_features_hai_SPM.drop_duplicates()
+myo_features_hai_SPM['gesture_name'] = myo_features_hai_SPM['gesture_name'].apply(nameDict)
+
+spm_hai = getXsYs(myo_features_hai_SPM, len(spm_cols))
+
+myo_features_hoa_SPM = pandas.read_csv('C:/Users/Hoa/thesis/data/myo_features_hoa_SPM', names=info_cols+spm_cols, skiprows=1, converters={'SPM_s0': complex, 'SPM_s1': complex, 'SPM_s2': complex, 'SPM_s3': complex, 'SPM_s4': complex, 'SPM_s5': complex, 'SPM_s6': complex, 'SPM_s7': complex})
+myo_features_hoa_SPM['gesture_name'] = myo_features_hoa_SPM['gesture_name'].apply(nameDict)
+myo_features_hoa_SPM = myo_features_hoa_SPM.drop_duplicates()
+
+spm_hoa = getXsYs(myo_features_hoa_SPM, len(spm_cols))
+
+myo_features_hien_SPM = pandas.read_csv('C:/Users/Hoa/thesis/data/myo_features_hien_SPM', names=info_cols+spm_cols, skiprows=1, converters={'SPM_s0': complex, 'SPM_s1': complex, 'SPM_s2': complex, 'SPM_s3': complex, 'SPM_s4': complex, 'SPM_s5': complex, 'SPM_s6': complex, 'SPM_s7': complex})
+myo_features_hien_SPM = myo_features_hien_SPM.drop_duplicates()
+myo_features_hien_SPM['gesture_name'] = myo_features_hien_SPM['gesture_name'].apply(nameDict)
+
+spm_hien = getXsYs(myo_features_hien_SPM, len(spm_cols))
+
+#for clf, name in [(lr, 'Logistic'),
+#                  (gnb, 'Naive Bayes'),
+#                  (svc, 'Support Vector Classification'),
+#                  (rfc, 'Random Forest')]:
+#    ovr_clf = OneVsRestClassifier(clf)
+#    acc = cross_validation.cross_val_score(ovr_clf, X_tmd, Y_tmd, cv=5)
+#    scores[name] = acc
+#for clf, name in [(lr, 'Logistic'),
+#                  (gnb, 'Naive Bayes'),
+#                  (svc, 'Support Vector Classification'),
+#                  (rfc, 'Random Forest')]:
+#    clf.fit(X_train, y_train)
+#    y_pred = clf.predict(X_test)
+#    acc = accuracy_score(y_test, y_pred)
+#    scores[name] = acc
+
+def plot_learning_curve(estimator, title, X, y, ylim=None, cv=None,
+                        n_jobs=1, train_sizes=numpy.linspace(.1, 1.0, 5)):
+
+    plt.figure()
+    plt.title(title)
+    if ylim is not None:
+        plt.ylim(*ylim)
+    plt.xlabel("Training examples")
+    plt.ylabel("Score")
+    train_sizes, train_scores, test_scores = learning_curve(
+        estimator, X, y, cv=cv, n_jobs=n_jobs, train_sizes=train_sizes)
+    train_scores_mean = numpy.mean(train_scores, axis=1)
+    train_scores_std = numpy.std(train_scores, axis=1)
+    test_scores_mean = numpy.mean(test_scores, axis=1)
+    test_scores_std = numpy.std(test_scores, axis=1)
+    plt.grid()
+
+    plt.fill_between(train_sizes, train_scores_mean - train_scores_std,
+                     train_scores_mean + train_scores_std, alpha=0.1,
+                     color="r")
+    plt.fill_between(train_sizes, test_scores_mean - test_scores_std,
+                     test_scores_mean + test_scores_std, alpha=0.1, color="g")
+    plt.plot(train_sizes, train_scores_mean, 'o-', color="r",
+             label="Training score")
+    plt.plot(train_sizes, test_scores_mean, 'o-', color="g",
+             label="Cross-validation score")
+
+    plt.legend(loc="best")
+    return plt
+
 
 '''myo_features_staff_TMD = pandas.read_csv('C:/Users/Hoa/thesis/data/myo_features_staff_TMD', names=info_cols+tmd_cols, skiprows=1)
 myo_features_staff_TMD = myo_features_staff_TMD.drop_duplicates()
