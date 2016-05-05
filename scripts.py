@@ -388,7 +388,10 @@ NEW_DIR = "new"
 HAI_DIR = "hai"
 HOA_DIR = "hoa"
 HIEN_DIR = "hien"
+AN_DIR = "an"
+SUSANNE_DIR = "susanne"
 GROUP_NAMES = [NUMBER_GROUP, TAPPING_GROUP, WRIST]
+GROUP_NAMES_FULL = [NUMBER_GROUP, TAPPING_GROUP, SEMANTIC_GROUP, WRIST]
 def readFiles(mydir, ending):
     os.chdir(mydir)
     return glob.glob("*"+ending)
@@ -486,7 +489,7 @@ def getXsYs(seq, lengths):
             dat = numpy.append(dat, [bucket], axis=0)
         dat = list(itertools.chain(*dat))
         Xs += [dat]
-    return (Xs, Ys)
+    return (numpy.asarray(Xs), numpy.asarray(Ys))
 
 #myo_features_TMD = pandas.read_csv('C:/Users/Hoa/thesis/data/myo_features_TMD', names=info_cols+tmd_cols, skiprows=1)
 
@@ -508,111 +511,35 @@ def getXsYs(seq, lengths):
 
 #
 #staff
+def readFeatures(fileName, cols):
+    features = pandas.read_csv('C:/Users/Hoa/thesis/data/myo_features_' + fileName, names=info_cols+cols, skiprows=1)
+    features = features.drop_duplicates()
+    features['gesture_name'] = features['gesture_name'].apply(nameDict)
+    return getXsYs(features, len(cols))
 
-myo_features_new_TMD = pandas.read_csv('C:/Users/Hoa/thesis/data/myo_features_new_TMD', names=info_cols+tmd_cols, skiprows=1)
-myo_features_new_TMD = myo_features_new_TMD.drop_duplicates()
-myo_features_new_TMD['gesture_name'] = myo_features_new_TMD['gesture_name'].apply(nameDict)
+tmdv_new = readFeatures('new_TMD', tmd_cols)
+    
+tmdv_hai = readFeatures('hai_TMD', tmd_cols)
+    
+tmdv_hoa = readFeatures('hoa_TMD', tmd_cols)
+    
+tmdv_hien = readFeatures('hien_TMD', tmd_cols)
 
-tmdv_new = getXsYs(myo_features_new_TMD, len(tmd_cols))
-
-myo_features_hai_TMD = pandas.read_csv('C:/Users/Hoa/thesis/data/myo_features_hai_TMD', names=info_cols+tmd_cols, skiprows=1)
-myo_features_hai_TMD = myo_features_hai_TMD.drop_duplicates()
-myo_features_hai_TMD['gesture_name'] = myo_features_hai_TMD['gesture_name'].apply(nameDict)
-
-tmdv_hai = getXsYs(myo_features_hai_TMD, len(tmd_cols))
-
-myo_features_hoa_TMD = pandas.read_csv('C:/Users/Hoa/thesis/data/myo_features_hoa_TMD', names=info_cols+tmd_cols, skiprows=1)
-myo_features_hoa_TMD = myo_features_hoa_TMD.drop_duplicates()
-myo_features_hoa_TMD['gesture_name'] = myo_features_hoa_TMD['gesture_name'].apply(nameDict)
-
-tmdv_hoa = getXsYs(myo_features_hoa_TMD, len(tmd_cols))
-
-myo_features_hien_TMD = pandas.read_csv('C:/Users/Hoa/thesis/data/myo_features_hien_TMD', names=info_cols+tmd_cols, skiprows=1)
-myo_features_hien_TMD = myo_features_hien_TMD.drop_duplicates()
-myo_features_hien_TMD['gesture_name'] = myo_features_hien_TMD['gesture_name'].apply(nameDict)
-
-tmdv_hien = getXsYs(myo_features_hien_TMD, len(tmd_cols))
-
-Xs_tmd = tmdv_new[0] + tmdv_hai[0] + tmdv_hoa[0] + tmdv_hien[0]
-Ys_tmd = tmdv_new[1] + tmdv_hai[1] + tmdv_hoa[1] + tmdv_hien[1]
-
-x_hoa = tmdv_hoa[0]
-
-y_hoa = tmdv_hoa[1]
-
-rfc_hoa = RandomForestClassifier(n_estimators=10)
-
-rfc_hoa.fit(x_hoa, y_hoa)
-
-rfc_scores_hoa = cross_validation.cross_val_score(rfc_hoa, x_hoa, y_hoa, cv=5)
+tmdv_an = readFeatures('an_TMD', tmd_cols)
+    
+tmdv_susanne = readFeatures('susanne_TMD', tmd_cols)
+    
+#X_tmd = tmdv_new[0] + tmdv_hai[0] + tmdv_hoa[0] + tmdv_hien[0]
+#Y_tmd = tmdv_new[1] + tmdv_hai[1] + tmdv_hoa[1] + tmdv_hien[1]
 
 # Create classifiers
 lr = LogisticRegression()
 gnb = GaussianNB()
 svc = LinearSVC(C=1.0)
 rfc = RandomForestClassifier(n_estimators=100)
-classif = OneVsRestClassifier(SVC(kernel='linear'))
-#classif.fit(X, Y)
 
-X_tmd = tmdv_hoa[0] + tmdv_hien[0] + tmdv_new[0]
-y_tmd = tmdv_hoa[1] + tmdv_hien[1] + tmdv_new[1]
-X_train, X_test, y_train, y_test = train_test_split(X_tmd, y_tmd, test_size=0.33, random_state=42)
-scores = {}
 
 #ACCC
-myo_features_new_ACCC = pandas.read_csv('C:/Users/Hoa/thesis/data/myo_features_new_ACCC', names=info_cols+accc_cols, skiprows=1)
-myo_features_new_ACCC = myo_features_new_ACCC.drop_duplicates()
-myo_features_new_ACCC['gesture_name'] = myo_features_new_ACCC['gesture_name'].apply(nameDict)
-
-accc_new = getXsYs(myo_features_new_ACCC, len(accc_cols))
-
-myo_features_hai_ACCC = pandas.read_csv('C:/Users/Hoa/thesis/data/myo_features_hai_ACCC', names=info_cols+accc_cols, skiprows=1)
-myo_features_hai_ACCC = myo_features_hai_ACCC.drop_duplicates()
-myo_features_hai_ACCC['gesture_name'] = myo_features_hai_ACCC['gesture_name'].apply(nameDict)
-
-accc_hai = getXsYs(myo_features_hai_ACCC, len(accc_cols))
-
-myo_features_hoa_ACCC = pandas.read_csv('C:/Users/Hoa/thesis/data/myo_features_hoa_ACCC', names=info_cols+accc_cols, skiprows=1)
-myo_features_hoa_ACCC['gesture_name'] = myo_features_hoa_ACCC['gesture_name'].apply(nameDict)
-myo_features_hoa_ACCC = myo_features_hoa_ACCC.drop_duplicates()
-
-accc_hoa = getXsYs(myo_features_hoa_ACCC, len(accc_cols))
-
-myo_features_hien_ACCC = pandas.read_csv('C:/Users/Hoa/thesis/data/myo_features_hien_ACCC', names=info_cols+accc_cols, skiprows=1)
-myo_features_hien_ACCC = myo_features_hien_ACCC.drop_duplicates()
-myo_features_hien_ACCC['gesture_name'] = myo_features_hien_ACCC['gesture_name'].apply(nameDict)
-
-accc_hien = getXsYs(myo_features_hien_ACCC, len(accc_cols))
-
-X_accc = accc_hoa[0] + accc_hien[0] + accc_new[0]
-y_accc = accc_hoa[1] + accc_hien[1] + accc_new[1]
-X_train, X_test, y_train, y_test = train_test_split(X_accc, y_accc, test_size=0.33, random_state=42)
-accc_scores = {}
-
-myo_features_new_SPM = pandas.read_csv('C:/Users/Hoa/thesis/data/myo_features_new_SPM', names=info_cols+spm_cols, skiprows=1, converters={'SPM_s0': complex, 'SPM_s1': complex, 'SPM_s2': complex, 'SPM_s3': complex, 'SPM_s4': complex, 'SPM_s5': complex, 'SPM_s6': complex, 'SPM_s7': complex})
-myo_features_new_SPM = myo_features_new_SPM.drop_duplicates()
-myo_features_new_SPM['gesture_name'] = myo_features_new_SPM['gesture_name'].apply(nameDict)
-
-spm_new = getXsYs(myo_features_new_SPM, len(spm_cols))
-
-myo_features_hai_SPM = pandas.read_csv('C:/Users/Hoa/thesis/data/myo_features_hai_SPM', names=info_cols+spm_cols, skiprows=1, converters={'SPM_s0': complex, 'SPM_s1': complex, 'SPM_s2': complex, 'SPM_s3': complex, 'SPM_s4': complex, 'SPM_s5': complex, 'SPM_s6': complex, 'SPM_s7': complex})
-myo_features_hai_SPM = myo_features_hai_SPM.drop_duplicates()
-myo_features_hai_SPM['gesture_name'] = myo_features_hai_SPM['gesture_name'].apply(nameDict)
-
-spm_hai = getXsYs(myo_features_hai_SPM, len(spm_cols))
-
-myo_features_hoa_SPM = pandas.read_csv('C:/Users/Hoa/thesis/data/myo_features_hoa_SPM', names=info_cols+spm_cols, skiprows=1, converters={'SPM_s0': complex, 'SPM_s1': complex, 'SPM_s2': complex, 'SPM_s3': complex, 'SPM_s4': complex, 'SPM_s5': complex, 'SPM_s6': complex, 'SPM_s7': complex})
-myo_features_hoa_SPM['gesture_name'] = myo_features_hoa_SPM['gesture_name'].apply(nameDict)
-myo_features_hoa_SPM = myo_features_hoa_SPM.drop_duplicates()
-
-spm_hoa = getXsYs(myo_features_hoa_SPM, len(spm_cols))
-
-myo_features_hien_SPM = pandas.read_csv('C:/Users/Hoa/thesis/data/myo_features_hien_SPM', names=info_cols+spm_cols, skiprows=1, converters={'SPM_s0': complex, 'SPM_s1': complex, 'SPM_s2': complex, 'SPM_s3': complex, 'SPM_s4': complex, 'SPM_s5': complex, 'SPM_s6': complex, 'SPM_s7': complex})
-myo_features_hien_SPM = myo_features_hien_SPM.drop_duplicates()
-myo_features_hien_SPM['gesture_name'] = myo_features_hien_SPM['gesture_name'].apply(nameDict)
-
-spm_hien = getXsYs(myo_features_hien_SPM, len(spm_cols))
-
 #for clf, name in [(lr, 'Logistic'),
 #                  (gnb, 'Naive Bayes'),
 #                  (svc, 'Support Vector Classification'),
@@ -628,6 +555,20 @@ spm_hien = getXsYs(myo_features_hien_SPM, len(spm_cols))
 #    y_pred = clf.predict(X_test)
 #    acc = accuracy_score(y_test, y_pred)
 #    scores[name] = acc
+def LOC(clf, X, y, start, end):
+    test = []
+    pred = []
+    for i in range(start, end):
+        X_train = numpy.delete(X, i)
+        X_test = X[i]
+        y_train = numpy.delete(y, i)
+        y_test = y[i]
+        clf.fit(X_train, y_train)
+        pr = clf.predict(X_test)
+        test += [y_test]
+        pred += [pr]
+    return (test, pred)
+        
 
 def plot_learning_curve(estimator, title, X, y, ylim=None, cv=None,
                         n_jobs=1, train_sizes=numpy.linspace(.1, 1.0, 5)):

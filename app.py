@@ -73,18 +73,20 @@ def WLcal(x):
             sum(numpy.diff(x['s3'])), sum(numpy.diff(x['s4'])),
             sum(numpy.diff(x['s5'])), sum(numpy.diff(x['s6'])), 
             sum(numpy.diff(x['s7'])), sum(numpy.diff(x['s8']))]  
-
+seq_id = 0
 tmd_funcs = [MAVcal, MAVRcal, zeroCrossingRate, WLcal]
 def extractSample(sequence):
     seq = pandas.DataFrame.from_csv(StringIO(sequence), sep=',', index_col=False)
+        
+    seq.to_csv(GIT_DIR+'/seq'+str(seq_id+1), sep=',', index=False)    
     def applyFunctions(val):
         ret_dict = []
         for f in tmd_funcs:
             ret_dict += f(val)
         return ret_dict
     return numpy.asarray([item for sublist in [applyFunctions(i) for i in overlappedWindow(seq[:GESTURE_LENGTH], WINDOW_SIZE, INCREMENT)] for item in sublist]).reshape(1, -1)
-
-model = "OVR_RFC.pkl"
+GIT_DIR = "C:/Users/Hoa/thesis/" 
+model = "models/OVR_RFC.pkl"
 #=======================================================
 HTTP = '192.168.143.1'
 
@@ -96,9 +98,9 @@ def predict():
     seq = request.get_json(force=True)['seq']
     gesture = request.get_json(force=True)['gesture']
     features = extractSample(seq)
-    clf = joblib.load(model)
-    result = clf.predict(features)
-    return jsonify({'gesture_name': result[0]})
+    clf = joblib.load(GIT_DIR+"/"+model)
+    result = str(clf.predict(features)[0])
+    return jsonify({'gesture_name': result})
 
 if __name__ == '__main__':
     app.run(host=HTTP,port=5000,debug=True)
